@@ -16,10 +16,13 @@ def getDataFromFile(fileinfo, branchlist) :
   datasize = tree.GetEntriesFast()
   
   print "Reading NN inputs from " + fileinfo
+  print "    total = ", datasize
+  
   data = np.empty([datasize, len(branchlist)])
   counter = 0
   for entry in tree :
     index_variable = 0
+    if not (counter%1000) : print " counter = ", counter
     for branch in branchlist :
       data[counter][index_variable] = getattr(entry, branch)
       index_variable = index_variable + 1
@@ -103,14 +106,18 @@ def getDataFromFileWithCutGreater(fileinfo, branchlist, cut_variable, cut_value)
 # Start here
 #
 
-sigfile = 'data/signal_skim_m_10.root.train.root'
+#sigfile = 'data/signal_skim_m_10.root.train.root'
+sigfile = 'all.root'
  
-brlist  = ['p1_pt', 'p2_pt', 'p3_pt',
-           'p1_eta', 'p2_eta', 'p3_eta',
-           'p1_phi', 'p2_phi', 'p3_phi',
+brlist  = ['p1_pt', 'p2_pt', 'p3_pt', 'p4_pt',
+           'p1_eta', 'p2_eta', 'p3_eta', 'p4_eta',
+           'p1_phi', 'p2_phi', 'p3_phi', 'p4_phi',
+           #
+           'p1_r9', 'p2_r9', 'p3_r9', 'p4_r9',
            #
            #
            'p12_mass', 'p13_mass', 'p14_mass', 'p23_mass', 'p24_mass', 'p34_mass',
+           'p12_dr', 'p13_dr', 'p14_dr', 'p23_dr', 'p24_dr', 'p34_dr',
            #
            #
            'best_combination'
@@ -174,16 +181,17 @@ print " label_data_train = ", label_data_train
 model = Sequential()
 model.add(Dense(50, input_dim = numvars-1, kernel_initializer='normal', activation='relu'))
 model.add(Dense(30, kernel_initializer='normal', activation='relu'))
+model.add(Dense(20, kernel_initializer='normal', activation='relu'))
 model.add(Dense(1, kernel_initializer='normal', activation='sigmoid'))
 
-model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
 
 model.summary()
 
 # train model
 history= model.fit(    data_train, label_data_train, 
                        batch_size=len(data_train)/8,
-                       epochs=100,
+                       epochs=20,
                        #epochs=200,
                        shuffle=True, 
                        validation_data = (data_test, label_data_test) 
@@ -204,38 +212,6 @@ from mpl_toolkits.mplot3d import Axes3D as plt3d
 
 import matplotlib as mpl
 mpl.rcParams['figure.facecolor'] = 'white' 
-
-#########################################################
-## plot samples
-
-
-#range_ = ( (0, 10), (0, 10) )
-#fig = plt.figure(0, figsize=(12,12))
-
-#plt.subplot(2,2,1)
-#plt.title("Signal")
-#plt.xlabel("layer 0")
-#plt.ylabel("layer 1")
-#plt.hist2d(np.array(data_sig_train)[:,0], np.array(data_sig_train)[:,1], range=range_, bins=20, cmap=cm.coolwarm)
-
-#plt.subplot(2,2,2)
-#plt.title("Background")
-#plt.hist2d(np.array(data_bkg_train)[:,0], np.array(data_bkg_train)[:,1], range=range_, bins=20, cmap=cm.coolwarm)
-#plt.xlabel("layer 0")
-#plt.ylabel("layer 1")
-
-##plt.subplot(2,2,3)
-##plt.title("Signal")
-##plt.xlabel("layer 2")
-##plt.ylabel("layer 3")
-##plt.hist2d(np.array(data_sig_train)[:,2], np.array(data_sig_train)[:,3], range=range_, bins=20, cmap=cm.coolwarm)
-
-##plt.subplot(2,2,4)
-##plt.title("Background")
-##plt.hist2d(np.array(data_bkg_train)[:,2], np.array(data_bkg_train)[:,3], range=range_, bins=20, cmap=cm.coolwarm)
-##plt.xlabel("layer 2")
-##plt.ylabel("layer 3")
-
 
 
 #########################################################
@@ -260,50 +236,53 @@ plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=T
 
 
 
+
 ##########################################################
-#### ROC curve
 
-#from sklearn.metrics import roc_curve
+labels_predicted_keras = model.predict(data_test).ravel()
 
-#labels_predicted_keras = model.predict(data_test).ravel()
-#false_positive_rates_keras, true_positive_rates_keras, thresholds_keras = roc_curve(label_data_test, labels_predicted_keras)
 
-##labels_predicted_keras = model.predict(data_train).ravel()
-##false_positive_rates_keras, true_positive_rates_keras, thresholds_keras = roc_curve(label_data_train, labels_predicted_keras)
+labels_difference = [labels_predicted_keras[j] - label_data_test[j][0] for j in range(len(label_data_test)) ]
 
-#from sklearn.metrics import auc
-#auc_keras = auc(false_positive_rates_keras, true_positive_rates_keras)
+print " labels_predicted_keras = ", labels_predicted_keras
 
-#plt.figure(3)
-#plt.plot([0, 1], [0, 1], 'k--')
-#plt.plot(false_positive_rates_keras, true_positive_rates_keras, label='Keras (area = {:.3f})'.format(auc_keras))
-#plt.xlabel('False positive rate')
-#plt.ylabel('True positive rate')
-#plt.title('ROC curve')
-#plt.legend(loc='best')
+#print " labels_difference = ", labels_difference
 
-## Zoom in view of the upper left corner.
-#plt.figure(4)
-#plt.xlim(0, 0.2)
-#plt.ylim(0.8, 1)
-#plt.plot([0, 1], [0, 1], 'k--')
-#plt.plot(false_positive_rates_keras, true_positive_rates_keras, label='Keras (area = {:.3f})'.format(auc_keras))
-#plt.xlabel('False positive rate')
-#plt.ylabel('True positive rate')
-#plt.title('ROC curve (zoomed in at top left)')
-#plt.legend(loc='best')
+plt.figure(2)
+plt.hist(labels_difference, normed=True, bins=30)
+plt.ylabel('reg-true');
 
 
 
-## HEP glossary
-#plt.figure(5)
-#plt.plot([0, 1], [1, 0], 'k--')
-#false_positive_one_minus_rates_keras = [ (1-value) for value in false_positive_rates_keras ]
-#plt.plot(true_positive_rates_keras, false_positive_one_minus_rates_keras)
-#plt.xlabel('Signal efficiency')
-#plt.ylabel('Background rejection')
-#plt.title('ROC curve')
-#plt.legend(loc='best')
+labels_difference_0 = [labels_predicted_keras[j] - label_data_test[j][0]    for j in range(len(label_data_test))  if label_data_test[j][0] == 0    ]
+labels_difference_1 = [labels_predicted_keras[j] - label_data_test[j][0]    for j in range(len(label_data_test))  if label_data_test[j][0] == 1    ]
+labels_difference_2 = [labels_predicted_keras[j] - label_data_test[j][0]    for j in range(len(label_data_test))  if label_data_test[j][0] == 2    ]
+
+
+
+plt.figure(3)
+
+plt.subplot(1,3,1)
+plt.hist(labels_difference_0, normed=True, bins=30)
+plt.xlabel('reg-true A');
+
+plt.subplot(1,3,2)
+plt.hist(labels_difference_1, normed=True, bins=30)
+plt.xlabel('reg-true B');
+
+plt.subplot(1,3,3)
+plt.hist(labels_difference_2, normed=True, bins=30)
+plt.xlabel('reg-true C');
+
+
+
+
+plt.figure(4)
+
+labels_distribution = [ label_data_test[j][0]    for j in range(len(label_data_test))  ]
+
+plt.hist(labels_distribution, normed=True, bins=30)
+plt.xlabel('true best combination');
 
 
 
@@ -311,5 +290,4 @@ plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=T
 ## plots only at the end
 
 plt.show()
-
 
